@@ -16,6 +16,8 @@ display:
           ESP_LOGI("eiferer.display", "Nextion ready — sending cached state");
           // Restore last-known page from NVS cache
           it.goto_page(id(cached_page));
+      - delay: 500ms
+      - script.execute: draw_eiferer_branding
 
 # ── Text Sensors (Nextion → ESPHome) ──
 text_sensor:
@@ -29,6 +31,8 @@ text_sensor:
     on_value:
       - lambda: |-
           ESP_LOGD("eiferer.display", "Page changed to: %s", x.c_str());
+      - delay: 100ms
+      - script.execute: draw_eiferer_branding
       - homeassistant.event:
           event: esphome.eiferer_event
           data:
@@ -185,6 +189,18 @@ api:
 
 # ── Touch / Swipe Processing ──
 script:
+  # Draw "Powered by Eiferer" branding in bottom-right corner
+  - id: draw_eiferer_branding
+    mode: single
+    then:
+      - lambda: |-
+          // Nextion xstr command: xstr x,y,w,h,font,fontcolor,backcolor,xcenter,ycenter,sta,text
+          // Position: bottom-right corner of a 480x320 display
+          // Font 0 = smallest built-in font, grey text, transparent background
+          // x=350, y=302, w=126, h=16, font=0, fontcolor=grey(50712), backcolor=0(black), xcenter=2(right), ycenter=0, sta=1(transparent)
+          id(nextion_display).send_command("xstr 350,302,126,16,0,50712,0,2,0,1,\"Powered by Eiferer\"");
+          ESP_LOGD("eiferer.display", "Branding rendered");
+
   - id: process_touch
     mode: single
     parameters:
