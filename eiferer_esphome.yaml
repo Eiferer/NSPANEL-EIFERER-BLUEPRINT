@@ -1,0 +1,20 @@
+# ============================================================================
+# NSPanel Eiferer Blueprint — Core ESPHome Configuration
+# ============================================================================
+# This is the main entry point. Include this file in your ESPHome packages.
+# All add-ons are optional and loaded separately.
+#
+# Usage in your panel's YAML:
+#   packages:
+#     remote_package:
+#       url: https://github.com/YOUR_USER/nspanel-eiferer-blueprint
+#       ref: main
+#       files:
+#         - eiferer_esphome.yaml
+# ============================================================================
+
+packages:
+  core_package: !include esphome/eiferer_core.yaml
+  standard_package: !include esphome/eiferer_standard.yaml
+  diagnostics_package: !include esphome/eiferer_diagnostics.yaml
+  upload_tft_package: !include esphome/addons/eiferer_addon_upload_tft.yaml

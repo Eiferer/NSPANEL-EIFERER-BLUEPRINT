@@ -1,0 +1,197 @@
+# ============================================================================
+# Eiferer CI — Firmware Size, Blueprint Validation, Compatibility Matrix
+# ============================================================================
+
+name: Eiferer CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  # ── Validate Blueprint YAML ──
+  validate-blueprint:
+    name: Validate Blueprint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Validate blueprint YAML
+        run: |
+          python -c "
+          import yaml
+          import sys
+
+          with open('eiferer_blueprint.yaml') as f:
+              bp = yaml.safe_load(f)
+
+          errors = []
+
+          # Check top-level structure
+          if 'blueprint' not in bp:
+              errors.append('Missing top-level blueprint key')
+          else:
+              b = bp['blueprint']
+              if b.get('domain') != 'automation':
+                  errors.append(f'Expected domain=automation, got {b.get(\"domain\")}')
+              if 'input' not in b:
+                  errors.append('Missing blueprint.input section')
+              if 'name' not in b:
+                  errors.append('Missing blueprint.name')
+
+          # Check automation structure
+          if 'trigger' not in bp:
+              errors.append('Missing trigger section')
+          if 'action' not in bp:
+              errors.append('Missing action section')
+
+          if errors:
+              for e in errors:
+                  print(f'::error::{e}')
+              sys.exit(1)
+          else:
+              print('Blueprint validation passed')
+              print(f'  Name: {bp[\"blueprint\"][\"name\"]}')
+              print(f'  Min HA: {bp[\"blueprint\"].get(\"homeassistant\", {}).get(\"min_version\", \"not set\")}')
+              input_count = sum(1 for _ in _flatten_inputs(bp[\"blueprint\"][\"input\"]))
+              print(f'  Input count: {input_count}')
+
+          def _flatten_inputs(inputs, depth=0):
+              if isinstance(inputs, dict):
+                  for k, v in inputs.items():
+                      if isinstance(v, dict) and 'input' in v:
+                          yield from _flatten_inputs(v['input'], depth+1)
+                      elif isinstance(v, dict) and 'selector' in v:
+                          yield k
+          "
+
+  # ── Validate ESPHome YAML files ──
+  validate-esphome:
+    name: Validate ESPHome YAML
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Validate all YAML files
+        run: |
+          python -c "
+          import yaml
+          import glob
+          import sys
+
+          errors = []
+          files = glob.glob('esphome/**/*.yaml', recursive=True) + ['eiferer_esphome.yaml']
+
+          for f in files:
+              try:
+                  with open(f) as fh:
+                      yaml.safe_load(fh)
+                  print(f'  OK: {f}')
+              except yaml.YAMLError as e:
+                  errors.append(f'{f}: {e}')
+                  print(f'  FAIL: {f}')
+
+          if errors:
+              for e in errors:
+                  print(f'::error::{e}')
+              sys.exit(1)
+          else:
+              print(f'All {len(files)} YAML files valid')
+          "
+
+  # ── Compile firmware against ESPHome versions ──
+  compile-firmware:
+    name: Compile (ESPHome ${{ matrix.esphome }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        esphome: ["2025.11.0", "2025.12.0", "2026.1.0"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ESPHome
+        run: pip install esphome==${{ matrix.esphome }}
+
+      - name: Create test config
+        run: |
+          cat > test_compile.yaml << 'EOF'
+          substitutions:
+            device_name: "test-panel"
+            friendly_name: "Test Panel"
+            wifi_ssid: "test_ssid"
+            wifi_password: "test_password"
+
+          packages:
+            local_package:
+              files:
+                - eiferer_esphome.yaml
+          EOF
+
+      - name: Compile firmware
+        run: esphome compile test_compile.yaml
+
+      - name: Check firmware size
+        run: |
+          FW=$(find .esphome -name "firmware.bin" -type f 2>/dev/null | head -1)
+          if [ -z "$FW" ]; then
+            echo "::warning::Could not find firmware binary"
+            exit 0
+          fi
+          SIZE=$(stat -c%s "$FW")
+          MAX=1900000
+          echo "Firmware size: $SIZE bytes (max: $MAX)"
+          if [ "$SIZE" -gt "$MAX" ]; then
+            echo "::error::Firmware too large: $SIZE > $MAX bytes"
+            exit 1
+          fi
+          # Warn if getting close (>90% of max)
+          WARN=$(( MAX * 90 / 100 ))
+          if [ "$SIZE" -gt "$WARN" ]; then
+            echo "::warning::Firmware approaching size limit: $SIZE / $MAX ($(( SIZE * 100 / MAX ))%)"
+          fi
+          echo "firmware_size=$SIZE" >> $GITHUB_OUTPUT
+
+  # ── Check for version consistency ──
+  version-check:
+    name: Version Consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check version strings match
+        run: |
+          BP_VER=$(grep -oP 'eiferer_version:\s*"\K[^"]+' esphome/eiferer_core.yaml | head -1)
+          echo "ESPHome core version: $BP_VER"
+
+          CHANGELOG_VER=$(grep -oP '^\## \[\K[^\]]+' CHANGELOG.md | head -1)
+          echo "Changelog version: $CHANGELOG_VER"
+
+          if [ "$BP_VER" != "$CHANGELOG_VER" ]; then
+            echo "::warning::Version mismatch: core=$BP_VER changelog=$CHANGELOG_VER"
+          else
+            echo "Versions match: $BP_VER"
+          fi

@@ -1,0 +1,35 @@
+# ============================================================================
+# Eiferer Add-on: Display as Light Entity
+# ============================================================================
+# Exposes the NSPanel display as a Home Assistant light entity.
+# This allows you to control display brightness alongside room lights,
+# include the display in "all lights off" automations, and schedule
+# display sleep/wake using existing HA light automation tools.
+# ============================================================================
+
+light:
+  - platform: monochromatic
+    id: display_light
+    name: "${friendly_name} Display"
+    output: display_light_output
+    default_transition_length: 500ms
+    restore_mode: RESTORE_DEFAULT_ON
+    on_turn_on:
+      - lambda: |-
+          ESP_LOGD("eiferer.addon", "Display light ON");
+    on_turn_off:
+      - lambda: |-
+          id(nextion_display).send_command("dim=0");
+          ESP_LOGD("eiferer.addon", "Display light OFF");
+
+output:
+  - platform: template
+    id: display_light_output
+    type: float
+    write_action:
+      - lambda: |-
+          int brightness = (int)(state * 100);
+          char cmd[32];
+          snprintf(cmd, sizeof(cmd), "dim=%d", brightness);
+          id(nextion_display).send_command(cmd);
+          id(cached_brightness) = brightness;

@@ -1,0 +1,69 @@
+# ============================================================================
+# Eiferer Add-on: Climate (Dual) — Heat + Cool Thermostat
+# ============================================================================
+# Uses both relays: one for heating, one for cooling.
+#
+# Configuration:
+#   substitutions:
+#     heater_relay: "1"
+#     cooler_relay: "2"
+# ============================================================================
+
+substitutions:
+  heater_relay: "1"
+  cooler_relay: "2"
+  temp_units: "°C"
+  temp_min: "15"
+  temp_max: "32"
+  cold_tolerance: "0.5"
+  hot_tolerance: "0.5"
+
+climate:
+  - platform: thermostat
+    id: climate_embedded
+    name: "${friendly_name} Climate"
+    sensor: temperature_internal
+    default_preset: Home
+    min_heating_off_time: 60s
+    min_heating_run_time: 60s
+    min_cooling_off_time: 60s
+    min_cooling_run_time: 60s
+    min_idle_time: 30s
+    heat_deadband: ${cold_tolerance}
+    heat_overrun: ${hot_tolerance}
+    cool_deadband: ${hot_tolerance}
+    cool_overrun: ${cold_tolerance}
+    visual:
+      min_temperature: ${temp_min}
+      max_temperature: ${temp_max}
+      temperature_step:
+        target_temperature: 0.5
+        current_temperature: 0.1
+
+    heat_action:
+      - switch.turn_on: relay_${heater_relay}
+      - switch.turn_off: relay_${cooler_relay}
+      - lambda: ESP_LOGI("eiferer.climate", "Dual: HEATING");
+
+    cool_action:
+      - switch.turn_off: relay_${heater_relay}
+      - switch.turn_on: relay_${cooler_relay}
+      - lambda: ESP_LOGI("eiferer.climate", "Dual: COOLING");
+
+    idle_action:
+      - switch.turn_off: relay_${heater_relay}
+      - switch.turn_off: relay_${cooler_relay}
+      - lambda: ESP_LOGI("eiferer.climate", "Dual: IDLE");
+
+    preset:
+      - name: Home
+        default_target_temperature_low: 21
+        default_target_temperature_high: 24
+
+      - name: Away
+        default_target_temperature_low: 17
+        default_target_temperature_high: 28
+
+      - name: Sleep
+        default_target_temperature_low: 19
+        default_target_temperature_high: 22

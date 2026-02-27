@@ -1,0 +1,85 @@
+# ============================================================================
+# Eiferer Add-on: Climate (Cooling) — Embedded Thermostat
+# ============================================================================
+# Provides a local thermostat using one of the NSPanel relays for cooling
+# (e.g., AC unit, fan). Operates independently of Home Assistant.
+#
+# Configuration:
+#   substitutions:
+#     cooler_relay: "2"
+# ============================================================================
+
+substitutions:
+  cooler_relay: "2"
+  temp_units: "°C"
+  temp_min: "16"
+  temp_max: "32"
+  cold_tolerance: "0.5"
+  hot_tolerance: "0.5"
+
+climate:
+  - platform: thermostat
+    id: climate_embedded
+    name: "${friendly_name} Climate"
+    sensor: temperature_internal
+    default_preset: Home
+    min_cooling_off_time: 60s
+    min_cooling_run_time: 60s
+    min_idle_time: 30s
+    cool_deadband: ${hot_tolerance}
+    cool_overrun: ${cold_tolerance}
+    visual:
+      min_temperature: ${temp_min}
+      max_temperature: ${temp_max}
+      temperature_step:
+        target_temperature: 0.5
+        current_temperature: 0.1
+
+    cool_action:
+      - switch.turn_on: relay_${cooler_relay}
+      - homeassistant.event:
+          event: esphome.eiferer_event
+          data:
+            device_name: ${device_name}
+            type: "climate_action"
+            action: "cooling"
+      - lambda: |-
+          ESP_LOGI("eiferer.climate", "Cooling ON (target=%.1f current=%.1f)",
+                   id(climate_embedded).target_temperature,
+                   id(temperature_internal).state);
+
+    idle_action:
+      - switch.turn_off: relay_${cooler_relay}
+      - homeassistant.event:
+          event: esphome.eiferer_event
+          data:
+            device_name: ${device_name}
+            type: "climate_action"
+            action: "idle"
+      - lambda: |-
+          ESP_LOGI("eiferer.climate", "Cooling OFF (target=%.1f current=%.1f)",
+                   id(climate_embedded).target_temperature,
+                   id(temperature_internal).state);
+
+    preset:
+      - name: Home
+        default_target_temperature_high: 24
+
+      - name: Away
+        default_target_temperature_high: 28
+
+      - name: Sleep
+        default_target_temperature_high: 22
+
+    on_state:
+      - homeassistant.event:
+          event: esphome.eiferer_event
+          data:
+            device_name: ${device_name}
+            type: "climate_state"
+          data_template:
+            mode: !lambda |-
+              auto mode = id(climate_embedded).mode;
+              if (mode == CLIMATE_MODE_COOL) return "cool";
+              if (mode == CLIMATE_MODE_OFF) return "off";
+              return "unknown";

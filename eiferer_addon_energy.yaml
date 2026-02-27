@@ -1,0 +1,88 @@
+# ============================================================================
+# Eiferer Add-on: Energy Dashboard Page
+# ============================================================================
+# Displays real-time energy data from Home Assistant's energy integration.
+# The blueprint sends energy data to the panel via events; this add-on
+# provides the ESPHome-side support for receiving and displaying it.
+# ============================================================================
+
+# Global variables for energy data
+globals:
+  - id: energy_solar_today
+    type: float
+    restore_value: false
+    initial_value: "0.0"
+
+  - id: energy_grid_today
+    type: float
+    restore_value: false
+    initial_value: "0.0"
+
+  - id: energy_battery_pct
+    type: float
+    restore_value: false
+    initial_value: "0.0"
+
+  - id: energy_cost_today
+    type: float
+    restore_value: false
+    initial_value: "0.0"
+
+  - id: energy_current_power
+    type: float
+    restore_value: false
+    initial_value: "0.0"
+
+api:
+  services:
+    # Called by blueprint to push energy data
+    - service: update_energy
+      variables:
+        solar_kwh: float
+        grid_kwh: float
+        battery_pct: float
+        cost: float
+        current_watts: float
+      then:
+        - lambda: |-
+            id(energy_solar_today) = solar_kwh;
+            id(energy_grid_today) = grid_kwh;
+            id(energy_battery_pct) = battery_pct;
+            id(energy_cost_today) = cost;
+            id(energy_current_power) = current_watts;
+
+            // Update Nextion energy page fields
+            char cmd[128];
+
+            snprintf(cmd, sizeof(cmd), "energy.solar.txt=\"%.1f kWh\"", solar_kwh);
+            id(nextion_display).send_command(cmd);
+
+            snprintf(cmd, sizeof(cmd), "energy.grid.txt=\"%.1f kWh\"", grid_kwh);
+            id(nextion_display).send_command(cmd);
+
+            snprintf(cmd, sizeof(cmd), "energy.battery.txt=\"%.0f%%\"", battery_pct);
+            id(nextion_display).send_command(cmd);
+
+            snprintf(cmd, sizeof(cmd), "energy.cost.txt=\"%.2f\"", cost);
+            id(nextion_display).send_command(cmd);
+
+            snprintf(cmd, sizeof(cmd), "energy.power.txt=\"%.0f W\"", current_watts);
+            id(nextion_display).send_command(cmd);
+
+            // Update battery progress bar (0-100)
+            snprintf(cmd, sizeof(cmd), "energy.batt_bar.val=%d", (int)battery_pct);
+            id(nextion_display).send_command(cmd);
+
+            ESP_LOGD("eiferer.addon", "Energy updated: solar=%.1f grid=%.1f batt=%.0f%% cost=%.2f power=%.0fW",
+                     solar_kwh, grid_kwh, battery_pct, cost, current_watts);
+
+# Energy data sensors (exposed to HA for history/graphs)
+sensor:
+  - platform: template
+    id: panel_energy_current_power
+    name: "${friendly_name} Current Power"
+    icon: "mdi:flash"
+    unit_of_measurement: "W"
+    accuracy_decimals: 0
+    update_interval: 30s
+    lambda: return id(energy_current_power);

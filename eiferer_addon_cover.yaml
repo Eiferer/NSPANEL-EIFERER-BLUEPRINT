@@ -1,0 +1,63 @@
+# ============================================================================
+# Eiferer Add-on: Cover / Blind Control
+# ============================================================================
+# Uses the NSPanel relays for time-based cover control.
+# Relay 1 = Open, Relay 2 = Close (configurable via substitutions).
+#
+# Configuration:
+#   substitutions:
+#     cover_open_relay: "1"
+#     cover_close_relay: "2"
+#     cover_open_duration: "30s"
+#     cover_close_duration: "30s"
+# ============================================================================
+
+substitutions:
+  cover_open_relay: "1"
+  cover_close_relay: "2"
+  cover_open_duration: "30s"
+  cover_close_duration: "30s"
+
+cover:
+  - platform: feedback
+    id: cover_embedded
+    name: "${friendly_name} Cover"
+    device_class: blind
+    has_built_in_endstop: false
+
+    open_action:
+      - switch.turn_off: relay_${cover_close_relay}
+      - switch.turn_on: relay_${cover_open_relay}
+      - lambda: ESP_LOGI("eiferer.addon", "Cover OPENING");
+      - homeassistant.event:
+          event: esphome.eiferer_event
+          data:
+            device_name: ${device_name}
+            type: "cover_action"
+            action: "opening"
+
+    open_duration: ${cover_open_duration}
+
+    close_action:
+      - switch.turn_off: relay_${cover_open_relay}
+      - switch.turn_on: relay_${cover_close_relay}
+      - lambda: ESP_LOGI("eiferer.addon", "Cover CLOSING");
+      - homeassistant.event:
+          event: esphome.eiferer_event
+          data:
+            device_name: ${device_name}
+            type: "cover_action"
+            action: "closing"
+
+    close_duration: ${cover_close_duration}
+
+    stop_action:
+      - switch.turn_off: relay_${cover_open_relay}
+      - switch.turn_off: relay_${cover_close_relay}
+      - lambda: ESP_LOGI("eiferer.addon", "Cover STOPPED at position %.0f%%", id(cover_embedded).position * 100);
+      - homeassistant.event:
+          event: esphome.eiferer_event
+          data:
+            device_name: ${device_name}
+            type: "cover_action"
+            action: "stopped"

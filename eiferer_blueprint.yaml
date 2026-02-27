@@ -1,0 +1,826 @@
+# ============================================================================
+# NSPanel Eiferer Blueprint — Home Assistant Automation Blueprint
+# ============================================================================
+# Version: 2026021
+#
+# This blueprint provides full UI configuration of NSPanel devices running
+# the Eiferer ESPHome firmware. It uses an event-driven architecture to
+# communicate with the panel, reducing Wi-Fi overhead and improving
+# responsiveness compared to polling-based approaches.
+#
+# Documentation: https://github.com/YOUR_USER/nspanel-eiferer-blueprint/docs
+# ============================================================================
+
+blueprint:
+  name: "NSPanel Eiferer Configuration"
+  description: >
+    Configure your Sonoff NSPanel with the Eiferer firmware.
+    Stability-first architecture with memory-safe design, instant boot UI,
+    and crash-resilient updates. All configuration via UI — no code changes needed.
+  source_url: https://github.com/YOUR_USER/nspanel-eiferer-blueprint/blob/main/eiferer_blueprint.yaml
+  domain: automation
+  homeassistant:
+    min_version: 2025.9.0
+
+  input:
+    # ══════════════════════════════════════════════════════════════════════
+    # CORE SETTINGS
+    # ══════════════════════════════════════════════════════════════════════
+    core_settings:
+      name: "Core Configuration"
+      icon: mdi:cog
+      collapsed: false
+      input:
+        nspanel_device:
+          name: "NSPanel Device (REQUIRED)"
+          description: >
+            Select the ESPHome device for this NSPanel.
+          default: []
+          selector:
+            device:
+              multiple: false
+              filter:
+                - integration: esphome
+                  model: esp32dev
+                - integration: esphome
+                  manufacturer: Eiferer
+
+    # ══════════════════════════════════════════════════════════════════════
+    # LOCALIZATION
+    # ══════════════════════════════════════════════════════════════════════
+    localization_settings:
+      name: "Localization"
+      icon: mdi:earth
+      collapsed: true
+      input:
+        language:
+          name: "Language"
+          description: "Display language for the panel UI."
+          default: "en"
+          selector:
+            select:
+              options:
+                - label: "English"
+                  value: "en"
+                - label: "Deutsch"
+                  value: "de"
+                - label: "Français"
+                  value: "fr"
+                - label: "Español"
+                  value: "es"
+                - label: "Italiano"
+                  value: "it"
+                - label: "Nederlands"
+                  value: "nl"
+                - label: "Português"
+                  value: "pt"
+                - label: "Polski"
+                  value: "pl"
+                - label: "Русский"
+                  value: "ru"
+
+        date_format:
+          name: "Date Format"
+          default: "dd/mm/yyyy"
+          selector:
+            select:
+              options:
+                - "dd/mm/yyyy"
+                - "mm/dd/yyyy"
+                - "yyyy-mm-dd"
+
+        time_format:
+          name: "Time Format"
+          default: "24h"
+          selector:
+            select:
+              options:
+                - label: "24-hour"
+                  value: "24h"
+                - label: "12-hour (AM/PM)"
+                  value: "12h"
+
+        temperature_unit:
+          name: "Temperature Unit"
+          default: "°C"
+          selector:
+            select:
+              options:
+                - "°C"
+                - "°F"
+
+    # ══════════════════════════════════════════════════════════════════════
+    # HOME PAGE
+    # ══════════════════════════════════════════════════════════════════════
+    home_page_settings:
+      name: "Home Page"
+      icon: mdi:home
+      collapsed: true
+      input:
+        home_outdoor_temp:
+          name: "Outdoor Temperature Sensor"
+          description: "Entity to display as outdoor temperature on the home page."
+          default: []
+          selector:
+            entity:
+              domain: sensor
+              device_class: temperature
+
+        home_indoor_temp:
+          name: "Indoor Temperature Sensor (Optional)"
+          description: >
+            Leave empty to use the NSPanel's built-in temperature sensor.
+          default: []
+          selector:
+            entity:
+              domain: sensor
+              device_class: temperature
+
+        home_weather:
+          name: "Weather Entity (Optional)"
+          description: "Weather entity for home page weather display."
+          default: []
+          selector:
+            entity:
+              domain: weather
+
+        home_outdoor_temp_font_size:
+          name: "Outdoor Temperature Font Size"
+          default: "36px"
+          selector:
+            select:
+              options:
+                - "16px"
+                - "18px"
+                - "22px"
+                - "26px"
+                - "36px"
+                - "48px"
+                - "72px"
+
+    # ══════════════════════════════════════════════════════════════════════
+    # BUTTON PAGES (up to 4 pages, 8 buttons each = 32 buttons)
+    # ══════════════════════════════════════════════════════════════════════
+    button_page_1:
+      name: "Button Page 1"
+      icon: mdi:grid
+      collapsed: true
+      input:
+        page1_button1:
+          name: "Page 1 — Button 1"
+          description: "Entity for button 1 on page 1. Leave empty to hide."
+          default: []
+          selector:
+            entity: {}
+        page1_button2:
+          name: "Page 1 — Button 2"
+          default: []
+          selector:
+            entity: {}
+        page1_button3:
+          name: "Page 1 — Button 3"
+          default: []
+          selector:
+            entity: {}
+        page1_button4:
+          name: "Page 1 — Button 4"
+          default: []
+          selector:
+            entity: {}
+        page1_button5:
+          name: "Page 1 — Button 5"
+          default: []
+          selector:
+            entity: {}
+        page1_button6:
+          name: "Page 1 — Button 6"
+          default: []
+          selector:
+            entity: {}
+        page1_button7:
+          name: "Page 1 — Button 7"
+          default: []
+          selector:
+            entity: {}
+        page1_button8:
+          name: "Page 1 — Button 8"
+          default: []
+          selector:
+            entity: {}
+
+    button_page_2:
+      name: "Button Page 2"
+      icon: mdi:grid
+      collapsed: true
+      input:
+        page2_button1:
+          name: "Page 2 — Button 1"
+          default: []
+          selector:
+            entity: {}
+        page2_button2:
+          name: "Page 2 — Button 2"
+          default: []
+          selector:
+            entity: {}
+        page2_button3:
+          name: "Page 2 — Button 3"
+          default: []
+          selector:
+            entity: {}
+        page2_button4:
+          name: "Page 2 — Button 4"
+          default: []
+          selector:
+            entity: {}
+        page2_button5:
+          name: "Page 2 — Button 5"
+          default: []
+          selector:
+            entity: {}
+        page2_button6:
+          name: "Page 2 — Button 6"
+          default: []
+          selector:
+            entity: {}
+        page2_button7:
+          name: "Page 2 — Button 7"
+          default: []
+          selector:
+            entity: {}
+        page2_button8:
+          name: "Page 2 — Button 8"
+          default: []
+          selector:
+            entity: {}
+
+    button_page_3:
+      name: "Button Page 3"
+      icon: mdi:grid
+      collapsed: true
+      input:
+        page3_button1:
+          name: "Page 3 — Button 1"
+          default: []
+          selector:
+            entity: {}
+        page3_button2:
+          name: "Page 3 — Button 2"
+          default: []
+          selector:
+            entity: {}
+        page3_button3:
+          name: "Page 3 — Button 3"
+          default: []
+          selector:
+            entity: {}
+        page3_button4:
+          name: "Page 3 — Button 4"
+          default: []
+          selector:
+            entity: {}
+        page3_button5:
+          name: "Page 3 — Button 5"
+          default: []
+          selector:
+            entity: {}
+        page3_button6:
+          name: "Page 3 — Button 6"
+          default: []
+          selector:
+            entity: {}
+        page3_button7:
+          name: "Page 3 — Button 7"
+          default: []
+          selector:
+            entity: {}
+        page3_button8:
+          name: "Page 3 — Button 8"
+          default: []
+          selector:
+            entity: {}
+
+    button_page_4:
+      name: "Button Page 4"
+      icon: mdi:grid
+      collapsed: true
+      input:
+        page4_button1:
+          name: "Page 4 — Button 1"
+          default: []
+          selector:
+            entity: {}
+        page4_button2:
+          name: "Page 4 — Button 2"
+          default: []
+          selector:
+            entity: {}
+        page4_button3:
+          name: "Page 4 — Button 3"
+          default: []
+          selector:
+            entity: {}
+        page4_button4:
+          name: "Page 4 — Button 4"
+          default: []
+          selector:
+            entity: {}
+        page4_button5:
+          name: "Page 4 — Button 5"
+          default: []
+          selector:
+            entity: {}
+        page4_button6:
+          name: "Page 4 — Button 6"
+          default: []
+          selector:
+            entity: {}
+        page4_button7:
+          name: "Page 4 — Button 7"
+          default: []
+          selector:
+            entity: {}
+        page4_button8:
+          name: "Page 4 — Button 8"
+          default: []
+          selector:
+            entity: {}
+
+    # ══════════════════════════════════════════════════════════════════════
+    # CLIMATE PAGE
+    # ══════════════════════════════════════════════════════════════════════
+    climate_settings:
+      name: "Climate Page"
+      icon: mdi:thermostat
+      collapsed: true
+      input:
+        climate_entity:
+          name: "Climate Entity"
+          description: >
+            The climate entity to control from the panel.
+            Can be the embedded thermostat or any HA climate entity.
+          default: []
+          selector:
+            entity:
+              domain: climate
+
+        climate_value1:
+          name: "Climate Page — Info Entity 1 (Optional)"
+          description: "Additional sensor to display on the climate page."
+          default: []
+          selector:
+            entity: {}
+
+        climate_value2:
+          name: "Climate Page — Info Entity 2 (Optional)"
+          default: []
+          selector:
+            entity: {}
+
+        climate_value3:
+          name: "Climate Page — Info Entity 3 (Optional)"
+          default: []
+          selector:
+            entity: {}
+
+        climate_value4:
+          name: "Climate Page — Info Entity 4 (Optional)"
+          default: []
+          selector:
+            entity: {}
+
+    # ══════════════════════════════════════════════════════════════════════
+    # ALARM
+    # ══════════════════════════════════════════════════════════════════════
+    alarm_settings:
+      name: "Alarm Panel"
+      icon: mdi:shield-lock
+      collapsed: true
+      input:
+        alarm_entity:
+          name: "Alarm Control Panel Entity"
+          default: []
+          selector:
+            entity:
+              domain: alarm_control_panel
+
+    # ══════════════════════════════════════════════════════════════════════
+    # DISPLAY & APPEARANCE
+    # ══════════════════════════════════════════════════════════════════════
+    display_settings:
+      name: "Display & Appearance"
+      icon: mdi:palette
+      collapsed: true
+      input:
+        display_mode:
+          name: "Presence-Aware Display Mode"
+          description: >
+            Controls how the display behaves based on room occupancy.
+          default: "auto"
+          selector:
+            select:
+              options:
+                - label: "Always On"
+                  value: "always_on"
+                - label: "Auto (bright when present, dim when away)"
+                  value: "auto"
+                - label: "Glance (clock when away, full UI on approach)"
+                  value: "glance"
+                - label: "Touch Only (wake only on touch)"
+                  value: "touch_only"
+
+        presence_entity:
+          name: "Presence Sensor (Optional)"
+          description: "Binary sensor for room occupancy detection (mmWave, PIR, etc)."
+          default: []
+          selector:
+            entity:
+              domain: binary_sensor
+              device_class: occupancy
+
+        theme_color:
+          name: "Accent Color"
+          description: "Primary accent color for the panel UI."
+          default: [0, 120, 255]
+          selector:
+            color_rgb: {}
+
+        button_bar_color:
+          name: "Button Bar Background Color"
+          default: [40, 40, 50]
+          selector:
+            color_rgb: {}
+
+    # ══════════════════════════════════════════════════════════════════════
+    # SWIPE GESTURES
+    # ══════════════════════════════════════════════════════════════════════
+    gesture_settings:
+      name: "Swipe Gestures"
+      icon: mdi:gesture-swipe
+      collapsed: true
+      input:
+        swipe_up_action:
+          name: "Swipe Up Action"
+          description: "Action to perform when swiping up on the home page."
+          default: []
+          selector:
+            action: {}
+
+        swipe_down_action:
+          name: "Swipe Down Action"
+          description: "Action to perform when swiping down on the home page."
+          default: []
+          selector:
+            action: {}
+
+        swipe_left_action:
+          name: "Swipe Left Action"
+          description: "Default: next page. Override with a custom action."
+          default: []
+          selector:
+            action: {}
+
+        swipe_right_action:
+          name: "Swipe Right Action"
+          description: "Default: previous page. Override with a custom action."
+          default: []
+          selector:
+            action: {}
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PHYSICAL BUTTONS
+    # ══════════════════════════════════════════════════════════════════════
+    button_settings:
+      name: "Physical Buttons"
+      icon: mdi:gesture-tap-button
+      collapsed: true
+      input:
+        left_button_entity:
+          name: "Left Button — Entity"
+          description: "Entity to toggle when the left physical button is pressed."
+          default: []
+          selector:
+            entity: {}
+
+        left_button_long_press:
+          name: "Left Button — Long Press Action"
+          default: []
+          selector:
+            action: {}
+
+        right_button_entity:
+          name: "Right Button — Entity"
+          description: "Entity to toggle when the right physical button is pressed."
+          default: []
+          selector:
+            entity: {}
+
+        right_button_long_press:
+          name: "Right Button — Long Press Action"
+          default: []
+          selector:
+            action: {}
+
+    # ══════════════════════════════════════════════════════════════════════
+    # MULTI-PANEL
+    # ══════════════════════════════════════════════════════════════════════
+    multi_panel_settings:
+      name: "Multi-Panel Sync"
+      icon: mdi:monitor-multiple
+      collapsed: true
+      input:
+        linked_panels:
+          name: "Linked NSPanels"
+          description: >
+            Other Eiferer panels to synchronize state with.
+            When settings change on this panel, they propagate to linked panels.
+          default: []
+          selector:
+            device:
+              multiple: true
+              filter:
+                - integration: esphome
+
+    # ══════════════════════════════════════════════════════════════════════
+    # QR CODE
+    # ══════════════════════════════════════════════════════════════════════
+    qrcode_settings:
+      name: "QR Code"
+      icon: mdi:qrcode-scan
+      collapsed: true
+      input:
+        qr_content:
+          name: "QR Code Content"
+          description: >
+            Text or URL to encode in the QR code. For Wi-Fi, use the format:
+            WIFI:S:YourSSID;T:WPA;P:YourPassword;;
+          default: ""
+          selector:
+            text:
+              multiline: false
+
+    # ══════════════════════════════════════════════════════════════════════
+    # ENERGY PAGE
+    # ══════════════════════════════════════════════════════════════════════
+    energy_settings:
+      name: "Energy Dashboard"
+      icon: mdi:flash
+      collapsed: true
+      input:
+        energy_solar_entity:
+          name: "Solar Production (Today)"
+          default: []
+          selector:
+            entity:
+              domain: sensor
+              device_class: energy
+
+        energy_grid_entity:
+          name: "Grid Consumption (Today)"
+          default: []
+          selector:
+            entity:
+              domain: sensor
+              device_class: energy
+
+        energy_battery_entity:
+          name: "Battery Level"
+          default: []
+          selector:
+            entity:
+              domain: sensor
+              device_class: battery
+
+        energy_cost_entity:
+          name: "Energy Cost (Today)"
+          default: []
+          selector:
+            entity:
+              domain: sensor
+
+        energy_power_entity:
+          name: "Current Power Draw"
+          default: []
+          selector:
+            entity:
+              domain: sensor
+              device_class: power
+
+# ══════════════════════════════════════════════════════════════════════════
+# AUTOMATION
+# ══════════════════════════════════════════════════════════════════════════
+
+mode: restart
+max_exceeded: silent
+
+variables:
+  v_device: !input nspanel_device
+  v_language: !input language
+  v_date_format: !input date_format
+  v_time_format: !input time_format
+  v_temp_unit: !input temperature_unit
+  v_display_mode: !input display_mode
+
+trigger:
+  # ── Panel requests configuration ──
+  - platform: event
+    event_type: esphome.eiferer_event
+    event_data:
+      type: "request_config"
+    id: "config_request"
+
+  # ── Physical button press ──
+  - platform: event
+    event_type: esphome.eiferer_event
+    event_data:
+      type: "button_press"
+    id: "button_press"
+
+  # ── Physical button long press ──
+  - platform: event
+    event_type: esphome.eiferer_event
+    event_data:
+      type: "button_long_press"
+    id: "button_long_press"
+
+  # ── Display page change ──
+  - platform: event
+    event_type: esphome.eiferer_event
+    event_data:
+      type: "page_change"
+    id: "page_change"
+
+  # ── Swipe gesture ──
+  - platform: event
+    event_type: esphome.eiferer_event
+    event_data:
+      type: "gesture"
+    id: "gesture"
+
+  # ── Climate state change ──
+  - platform: event
+    event_type: esphome.eiferer_event
+    event_data:
+      type: "climate_state"
+    id: "climate_state"
+
+  # ── Button entity state changes (update display) ──
+  - platform: homeassistant
+    event: start
+    id: "ha_start"
+
+  # ── Periodic energy data push (every 60s) ──
+  - platform: time_pattern
+    minutes: "/1"
+    id: "energy_update"
+
+  # ── Presence change ──
+  - platform: state
+    entity_id: !input presence_entity
+    id: "presence_change"
+
+condition: []
+
+action:
+  - choose:
+      # ── Handle config request from panel ──
+      - conditions:
+          - condition: trigger
+            id: "config_request"
+        sequence:
+          - alias: "Send full configuration to panel"
+            event: esphome.eiferer_config
+            event_data:
+              target_device: "{{ v_device }}"
+              language: "{{ v_language }}"
+              date_format: "{{ v_date_format }}"
+              time_format: "{{ v_time_format }}"
+              temp_unit: "{{ v_temp_unit }}"
+
+      # ── Handle physical button press ──
+      - conditions:
+          - condition: trigger
+            id: "button_press"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ trigger.event.data.button == 'left' }}"
+                sequence:
+                  - service: homeassistant.toggle
+                    target:
+                      entity_id: !input left_button_entity
+              - conditions:
+                  - condition: template
+                    value_template: "{{ trigger.event.data.button == 'right' }}"
+                sequence:
+                  - service: homeassistant.toggle
+                    target:
+                      entity_id: !input right_button_entity
+
+      # ── Handle physical button long press ──
+      - conditions:
+          - condition: trigger
+            id: "button_long_press"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ trigger.event.data.button == 'left' }}"
+                sequence: !input left_button_long_press
+              - conditions:
+                  - condition: template
+                    value_template: "{{ trigger.event.data.button == 'right' }}"
+                sequence: !input right_button_long_press
+
+      # ── Handle swipe gestures ──
+      - conditions:
+          - condition: trigger
+            id: "gesture"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ trigger.event.data.gesture == 'swipe_up' }}"
+                sequence: !input swipe_up_action
+              - conditions:
+                  - condition: template
+                    value_template: "{{ trigger.event.data.gesture == 'swipe_down' }}"
+                sequence: !input swipe_down_action
+
+      # ── Handle presence changes ──
+      - conditions:
+          - condition: trigger
+            id: "presence_change"
+        sequence:
+          - choose:
+              # Presence detected — wake display
+              - conditions:
+                  - condition: template
+                    value_template: "{{ trigger.to_state.state == 'on' }}"
+                sequence:
+                  - service: number.set_value
+                    target:
+                      entity_id: "{{ device_entities(v_device) | select('search', 'display_brightness') | first }}"
+                    data:
+                      value: 100
+
+              # No presence — dim or sleep based on mode
+              - conditions:
+                  - condition: template
+                    value_template: "{{ trigger.to_state.state == 'off' }}"
+                sequence:
+                  - choose:
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ v_display_mode == 'auto' }}"
+                        sequence:
+                          - service: number.set_value
+                            target:
+                              entity_id: "{{ device_entities(v_device) | select('search', 'display_brightness') | first }}"
+                            data:
+                              value: 5
+
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ v_display_mode == 'touch_only' }}"
+                        sequence:
+                          - service: number.set_value
+                            target:
+                              entity_id: "{{ device_entities(v_device) | select('search', 'display_brightness') | first }}"
+                            data:
+                              value: 0
+
+      # ── Push energy data to panel ──
+      - conditions:
+          - condition: trigger
+            id: "energy_update"
+        sequence:
+          - service: "esphome.{{ device_attr(v_device, 'name') | slugify }}_update_energy"
+            data:
+              solar_kwh: >
+                {% set e = states(energy_solar_entity | default('sensor.none', true)) %}
+                {{ e | float(0) }}
+              grid_kwh: >
+                {% set e = states(energy_grid_entity | default('sensor.none', true)) %}
+                {{ e | float(0) }}
+              battery_pct: >
+                {% set e = states(energy_battery_entity | default('sensor.none', true)) %}
+                {{ e | float(0) }}
+              cost: >
+                {% set e = states(energy_cost_entity | default('sensor.none', true)) %}
+                {{ e | float(0) }}
+              current_watts: >
+                {% set e = states(energy_power_entity | default('sensor.none', true)) %}
+                {{ e | float(0) }}
+
+      # ── HA restart — re-send config ──
+      - conditions:
+          - condition: trigger
+            id: "ha_start"
+        sequence:
+          - delay: 10  # Wait for ESPHome devices to reconnect
+          - event: esphome.eiferer_event
+            event_data:
+              type: "request_config"
+              device_name: "{{ v_device }}"

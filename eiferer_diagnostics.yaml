@@ -1,0 +1,165 @@
+# ============================================================================
+# Eiferer Diagnostics — Memory, Wi-Fi, Uptime, System Health Sensors
+# ============================================================================
+# Exposes diagnostic sensors to Home Assistant for monitoring panel health.
+# These are the early-warning system that prevents crashes and boot loops.
+# ============================================================================
+
+sensor:
+  # ── Memory Sensors ──
+  - platform: template
+    id: free_heap
+    name: "${friendly_name} Free Heap"
+    icon: "mdi:memory"
+    entity_category: diagnostic
+    unit_of_measurement: "bytes"
+    accuracy_decimals: 0
+    update_interval: 30s
+    lambda: |-
+      return esp_get_free_heap_size();
+
+  - platform: template
+    id: min_free_heap
+    name: "${friendly_name} Min Free Heap"
+    icon: "mdi:memory"
+    entity_category: diagnostic
+    unit_of_measurement: "bytes"
+    accuracy_decimals: 0
+    update_interval: 30s
+    lambda: |-
+      return esp_get_minimum_free_heap_size();
+
+  - platform: template
+    id: free_psram
+    name: "${friendly_name} Free PSRAM"
+    icon: "mdi:chip"
+    entity_category: diagnostic
+    unit_of_measurement: "bytes"
+    accuracy_decimals: 0
+    update_interval: 60s
+    lambda: |-
+      if (psramFound()) {
+        return ESP.getFreePsram();
+      }
+      return 0;
+
+  - platform: template
+    id: largest_free_block
+    name: "${friendly_name} Largest Free Block"
+    icon: "mdi:puzzle"
+    entity_category: diagnostic
+    unit_of_measurement: "bytes"
+    accuracy_decimals: 0
+    update_interval: 30s
+    lambda: |-
+      return heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+
+  # ── Wi-Fi Sensors ──
+  - platform: wifi_signal
+    id: wifi_signal_db
+    name: "${friendly_name} Wi-Fi Signal"
+    entity_category: diagnostic
+    update_interval: 60s
+
+  - platform: template
+    id: wifi_signal_percent
+    name: "${friendly_name} Wi-Fi Signal %"
+    icon: "mdi:wifi"
+    entity_category: diagnostic
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    update_interval: 60s
+    lambda: |-
+      float rssi = id(wifi_signal_db).state;
+      if (rssi <= -100) return 0.0f;
+      if (rssi >= -50) return 100.0f;
+      return 2.0f * (rssi + 100.0f);
+
+  # ── Uptime ──
+  - platform: uptime
+    id: uptime_sensor
+    name: "${friendly_name} Uptime"
+    entity_category: diagnostic
+    update_interval: 60s
+
+  # ── Crash Counter ──
+  - platform: template
+    id: crash_count_sensor
+    name: "${friendly_name} Crash Count"
+    icon: "mdi:alert-circle"
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    update_interval: 60s
+    lambda: |-
+      return id(crash_count);
+
+text_sensor:
+  # ── Wi-Fi Info ──
+  - platform: wifi_info
+    ip_address:
+      name: "${friendly_name} IP Address"
+      entity_category: diagnostic
+    ssid:
+      name: "${friendly_name} Wi-Fi SSID"
+      entity_category: diagnostic
+    mac_address:
+      name: "${friendly_name} MAC Address"
+      entity_category: diagnostic
+
+  # ── ESPHome Version ──
+  - platform: version
+    name: "${friendly_name} ESPHome Version"
+    entity_category: diagnostic
+
+  # ── Memory Health Summary ──
+  - platform: template
+    id: memory_health
+    name: "${friendly_name} Memory Health"
+    icon: "mdi:heart-pulse"
+    entity_category: diagnostic
+    update_interval: 30s
+    lambda: |-
+      uint32_t free = esp_get_free_heap_size();
+      if (free > 80000) return {"Healthy"};
+      if (free > ${memory_warn_threshold}) return {"OK"};
+      if (free > ${memory_critical_threshold}) return {"Low"};
+      return {"Critical"};
+
+  # ── Reset Reason ──
+  - platform: template
+    id: last_reset_reason
+    name: "${friendly_name} Last Reset Reason"
+    icon: "mdi:restart"
+    entity_category: diagnostic
+    lambda: |-
+      auto reason = esp_reset_reason();
+      switch (reason) {
+        case ESP_RST_POWERON:  return {"Power On"};
+        case ESP_RST_EXT:      return {"External"};
+        case ESP_RST_SW:       return {"Software"};
+        case ESP_RST_PANIC:    return {"Panic/Crash"};
+        case ESP_RST_INT_WDT:  return {"Interrupt Watchdog"};
+        case ESP_RST_TASK_WDT: return {"Task Watchdog"};
+        case ESP_RST_WDT:      return {"Watchdog"};
+        case ESP_RST_DEEPSLEEP:return {"Deep Sleep"};
+        case ESP_RST_BROWNOUT: return {"Brownout"};
+        case ESP_RST_SDIO:     return {"SDIO"};
+        default:               return {"Unknown"};
+      }
+
+# ── Diagnostic Buttons ──
+button:
+  - platform: restart
+    id: restart_button
+    name: "${friendly_name} Restart"
+    entity_category: config
+
+  - platform: template
+    id: force_safe_mode
+    name: "${friendly_name} Force Safe Mode"
+    icon: "mdi:shield-alert"
+    entity_category: config
+    on_press:
+      - lambda: |-
+          id(safe_mode_active) = true;
+          ESP_LOGW("eiferer.boot", "Safe mode manually activated");

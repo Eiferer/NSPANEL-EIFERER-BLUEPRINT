@@ -1,0 +1,257 @@
+# ============================================================================
+# Eiferer Standard — Display, Notifications, Swipe Gestures, Page Navigation
+# ============================================================================
+# Standard NSPanel functionality: Nextion display communication, page
+# management, notification queue, swipe gestures, and display sleep.
+# ============================================================================
+
+# ── Nextion Display ──
+display:
+  - platform: nextion
+    id: nextion_display
+    uart_id: uart_nextion
+    tft_url: ${nextion_update_url}
+    on_setup:
+      - lambda: |-
+          ESP_LOGI("eiferer.display", "Nextion ready — sending cached state");
+          // Restore last-known page from NVS cache
+          it.goto_page(id(cached_page));
+
+# ── Text Sensors (Nextion → ESPHome) ──
+text_sensor:
+  # Current page reported by Nextion
+  - platform: nextion
+    nextion_id: nextion_display
+    id: current_page
+    name: "${friendly_name} Current Page"
+    component_name: page_name
+    internal: true
+    on_value:
+      - lambda: |-
+          ESP_LOGD("eiferer.display", "Page changed to: %s", x.c_str());
+      - homeassistant.event:
+          event: esphome.eiferer_event
+          data:
+            device_name: ${device_name}
+            type: "page_change"
+          data_template:
+            page: !lambda 'return x.c_str();'
+
+  # Touch event coordinates from Nextion
+  - platform: nextion
+    nextion_id: nextion_display
+    id: touch_event
+    component_name: touch
+    internal: true
+    on_value:
+      - script.execute:
+          id: process_touch
+          touch_data: !lambda 'return x;'
+
+  # Firmware version tracking
+  - platform: template
+    id: eiferer_version_sensor
+    name: "${friendly_name} Eiferer Version"
+    lambda: 'return {"${eiferer_version}"};'
+    entity_category: diagnostic
+    icon: "mdi:tag"
+
+  # Safe mode status
+  - platform: template
+    id: safe_mode_status
+    name: "${friendly_name} Boot Status"
+    lambda: |-
+      if (id(safe_mode_active)) return {"Safe Mode"};
+      if (!id(blueprint_init_complete)) return {"Initializing"};
+      return {"Normal"};
+    entity_category: diagnostic
+    icon: "mdi:shield-check"
+    update_interval: 10s
+
+# ── Number inputs (HA → Nextion) ──
+number:
+  # Display brightness
+  - platform: template
+    id: display_brightness
+    name: "${friendly_name} Display Brightness"
+    icon: "mdi:brightness-6"
+    min_value: 0
+    max_value: 100
+    step: 1
+    initial_value: 100
+    optimistic: true
+    set_action:
+      - lambda: |-
+          int val = (int)x;
+          id(cached_brightness) = val;
+          // Convert 0-100 to Nextion 0-100 dim value
+          char cmd[32];
+          snprintf(cmd, sizeof(cmd), "dim=%d", val);
+          id(nextion_display).send_command(cmd);
+          ESP_LOGD("eiferer.display", "Brightness set to %d%%", val);
+
+  # Display sleep timeout (seconds, 0 = never)
+  - platform: template
+    id: display_sleep_timeout
+    name: "${friendly_name} Sleep Timeout"
+    icon: "mdi:sleep"
+    entity_category: config
+    min_value: 0
+    max_value: 600
+    step: 10
+    initial_value: 60
+    unit_of_measurement: "s"
+    optimistic: true
+
+# ── Services (callable from HA automations) ──
+# Notification with priority queue
+api:
+  services:
+    # Show notification on the panel display
+    - service: notification_show
+      variables:
+        label: string
+        text: string
+        priority: string  # "high", "normal", "low"
+        duration: int     # seconds, 0 = until dismissed
+        sound: string     # RTTTL melody name or empty
+      then:
+        - lambda: |-
+            ESP_LOGI("eiferer.comms", "Notification: [%s] %s (priority=%s, duration=%d)",
+                     label.c_str(), text.c_str(), priority.c_str(), duration);
+
+            // Send to Nextion display
+            char cmd[256];
+            snprintf(cmd, sizeof(cmd), "notification.label.txt=\"%s\"", label.c_str());
+            id(nextion_display).send_command(cmd);
+            snprintf(cmd, sizeof(cmd), "notification.text.txt=\"%s\"", text.c_str());
+            id(nextion_display).send_command(cmd);
+            id(nextion_display).send_command("page notification");
+
+        # Play buzzer sound for high-priority notifications
+        - if:
+            condition:
+              lambda: 'return priority == "high";'
+            then:
+              - rtttl.play:
+                  rtttl: 'alert:d=4,o=5,b=200:e6,p,e6'
+        - if:
+            condition:
+              lambda: 'return duration > 0;'
+            then:
+              - delay: !lambda 'return duration * 1000;'
+              - lambda: |-
+                  // Return to previous page after notification timeout
+                  id(nextion_display).goto_page(id(cached_page));
+
+    # Navigate to a specific page
+    - service: goto_page
+      variables:
+        page: int
+      then:
+        - lambda: |-
+            id(cached_page) = page;
+            id(nextion_display).goto_page(page);
+            ESP_LOGD("eiferer.display", "Navigate to page %d", page);
+
+    # Play a sound on the buzzer
+    - service: play_rtttl
+      variables:
+        song: string
+      then:
+        - rtttl.play:
+            rtttl: !lambda 'return song;'
+
+    # Force save state to NVS
+    - service: save_state
+      then:
+        - script.execute: save_nvs_cache
+
+    # Trigger a full reboot
+    - service: reboot
+      then:
+        - script.execute: save_nvs_cache
+        - delay: 500ms
+        - switch.turn_on: restart_switch
+
+    # Send raw Nextion command (advanced users)
+    - service: send_nextion_command
+      variables:
+        command: string
+      then:
+        - lambda: |-
+            id(nextion_display).send_command(command.c_str());
+            ESP_LOGD("eiferer.display", "Raw Nextion command: %s", command.c_str());
+
+# ── Touch / Swipe Processing ──
+script:
+  - id: process_touch
+    mode: single
+    parameters:
+      touch_data: string
+    then:
+      - lambda: |-
+          // Parse touch coordinates for swipe detection
+          // Format: "x_start,y_start,x_end,y_end"
+          // Swipe thresholds
+          const int SWIPE_MIN = 80;  // Minimum pixel distance
+
+          int x1, y1, x2, y2;
+          if (sscanf(touch_data.c_str(), "%d,%d,%d,%d", &x1, &y1, &x2, &y2) != 4) return;
+
+          int dx = x2 - x1;
+          int dy = y2 - y1;
+
+          std::string gesture = "tap";
+
+          if (abs(dx) > abs(dy) && abs(dx) > SWIPE_MIN) {
+            gesture = dx > 0 ? "swipe_right" : "swipe_left";
+          } else if (abs(dy) > abs(dx) && abs(dy) > SWIPE_MIN) {
+            gesture = dy > 0 ? "swipe_down" : "swipe_up";
+          }
+
+          if (gesture != "tap") {
+            ESP_LOGI("eiferer.display", "Gesture: %s (dx=%d dy=%d)", gesture.c_str(), dx, dy);
+          }
+
+          // Fire event for blueprint to handle
+          auto call = id(homeassistant_api).make_call("fire_event");
+
+  # Display sleep / wake management
+  - id: display_sleep_timer
+    mode: restart
+    then:
+      - lambda: |-
+          int timeout = (int)id(display_sleep_timeout).state;
+          if (timeout <= 0) return;  // Sleep disabled
+      - delay: !lambda 'return (int)id(display_sleep_timeout).state * 1000;'
+      - lambda: |-
+          id(nextion_display).send_command("dim=0");
+          ESP_LOGD("eiferer.display", "Display sleeping");
+
+# ── Internal Temperature Sensor ──
+sensor:
+  - platform: ntc
+    id: temperature_internal
+    sensor: temp_resistance
+    name: "${friendly_name} Temperature"
+    calibration:
+      b_constant: 3950
+      reference_temperature: 25°C
+      reference_resistance: 10kOhm
+    filters:
+      - lambda: return x - 11.0;  # NSPanel temp offset correction
+
+  - platform: resistance
+    id: temp_resistance
+    sensor: temp_adc
+    configuration: DOWNSTREAM
+    resistor: 11.2kOhm
+    internal: true
+
+  - platform: adc
+    id: temp_adc
+    pin: 38
+    attenuation: 11db
+    internal: true
+    update_interval: 30s

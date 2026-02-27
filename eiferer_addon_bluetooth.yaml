@@ -1,0 +1,19 @@
+# ============================================================================
+# Eiferer Add-on: Bluetooth Proxy
+# ============================================================================
+# Turns the NSPanel into a Bluetooth Low Energy proxy for Home Assistant.
+#
+# ⚠️  WARNING: This add-on uses significant memory. Monitor your free heap
+# after enabling. If heap drops below 30KB, disable this add-on.
+#
+# The Eiferer diagnostics will alert you if memory becomes critically low.
+# ============================================================================
+
+esp32_ble_tracker:
+  scan_parameters:
+    active: true
+    interval: 1100ms
+    window: 1100ms
+
+bluetooth_proxy:
+  active: true
