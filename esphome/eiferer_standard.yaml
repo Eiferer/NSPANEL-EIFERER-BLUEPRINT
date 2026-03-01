@@ -122,13 +122,13 @@ api:
       then:
         - lambda: |-
             ESP_LOGI("eiferer.comms", "Notification: [%s] %s (priority=%s, duration=%d)",
-                     label.c_str(), text.c_str(), priority.c_str(), duration);
+                     label.c_str(), message.c_str(), priority.c_str(), duration);
 
             // Send to Nextion display
             char cmd[256];
             snprintf(cmd, sizeof(cmd), "notification.label.txt=\"%s\"", label.c_str());
             id(nextion_display).send_command(cmd);
-            snprintf(cmd, sizeof(cmd), "notification.text.txt=\"%s\"", text.c_str());
+            snprintf(cmd, sizeof(cmd), "notification.text.txt=\"%s\"", message.c_str());
             id(nextion_display).send_command(cmd);
             id(nextion_display).send_command("page notification");
 
