@@ -46,10 +46,9 @@ esphome:
       then:
         - lambda: |-
             // ── Phase 1: Critical hardware init ──
-            ESP_LOGI("eiferer.boot", "Phase=hardware Version=%s Heap=%d PSRAM=%d",
+            ESP_LOGI("eiferer.boot", "Phase=hardware Version=%s Heap=%d",
                      "${eiferer_version}",
-                     esp_get_free_heap_size(),
-                     ESP.getPsramSize());
+                     esp_get_free_heap_size());
 
             // Check for crash recovery
             auto reason = esp_reset_reason();
@@ -117,8 +116,7 @@ wifi:
     password: "eiferer_setup"
   on_connect:
     - lambda: |-
-        ESP_LOGI("eiferer.wifi", "Connected RSSI=%d IP=%s",
-                 WiFi.RSSI(), WiFi.localIP().toString().c_str());
+        ESP_LOGI("eiferer.wifi", "Connected");
   on_disconnect:
     - lambda: |-
         ESP_LOGW("eiferer.wifi", "Disconnected — panel continues with cached state");
