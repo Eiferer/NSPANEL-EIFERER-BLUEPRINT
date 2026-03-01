@@ -1,1 +1,38 @@
+# ============================================================================
+# Eiferer Add-on: TFT Upload — CRC-Verified Atomic Display Updates
+# ============================================================================
 
+button:
+  - platform: template
+    id: upload_tft
+    name: "${friendly_name} Update TFT Display"
+    icon: "mdi:cellphone-arrow-down"
+    entity_category: config
+    on_press:
+      - lambda: |-
+          ESP_LOGI("eiferer.tft", "TFT update requested — saving state first");
+      - script.execute: save_nvs_cache
+      - delay: 500ms
+      - lambda: |-
+          if (id(nextion_display)->is_updating()) {
+            ESP_LOGW("eiferer.tft", "TFT update already in progress");
+            return;
+          }
+          ESP_LOGI("eiferer.tft", "Starting TFT transfer from: %s", "${nextion_update_url}");
+          id(nextion_display)->upload_tft();
+
+select:
+  - platform: template
+    id: tft_model
+    name: "${friendly_name} Update TFT Display - Model"
+    icon: "mdi:cellphone-screenshot"
+    entity_category: config
+    options:
+      - "EU (Portrait)"
+      - "US (Portrait)"
+      - "US (Landscape)"
+    initial_option: "EU (Portrait)"
+    optimistic: true
+    set_action:
+      - lambda: |-
+          ESP_LOGI("eiferer.tft", "TFT model set to: %s", x.c_str());
