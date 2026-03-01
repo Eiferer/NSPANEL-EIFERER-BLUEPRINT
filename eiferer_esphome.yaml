@@ -1,16 +1,32 @@
 # ============================================================================
 # NSPanel Eiferer Blueprint — Core ESPHome Configuration
 # ============================================================================
-# This is the main entry point. Include this file in your ESPHome packages.
-# All add-ons are optional and loaded separately.
+# NOTE ON REMOTE PACKAGES:
+# ESPHome remote packages do NOT support !include. You must list each
+# file individually in your panel's packages: section.
 #
 # Usage in your panel's YAML:
 #   packages:
 #     remote_package:
-#       url: https://github.com/YOUR_USER/nspanel-eiferer-blueprint
+#       url: https://github.com/Eiferer/NSPANEL-EIFERER-BLUEPRINT
 #       ref: main
+#       refresh: 300s
 #       files:
-#         - eiferer_esphome.yaml
+#         - esphome/eiferer_core.yaml          # Core (required)
+#         - esphome/eiferer_standard.yaml       # Display, notifications (required)
+#         - esphome/eiferer_diagnostics.yaml    # Memory/Wi-Fi sensors (required)
+#         - esphome/addons/eiferer_addon_upload_tft.yaml  # TFT upload (required)
+#         # Optional add-ons:
+#         # - esphome/addons/eiferer_addon_climate_heat.yaml
+#         # - esphome/addons/eiferer_addon_climate_cool.yaml
+#         # - esphome/addons/eiferer_addon_climate_dual.yaml
+#         # - esphome/addons/eiferer_addon_cover.yaml
+#         # - esphome/addons/eiferer_addon_display_light.yaml
+#         # - esphome/addons/eiferer_addon_energy.yaml
+#         # - esphome/addons/eiferer_addon_bluetooth.yaml
+#
+# This file is for LOCAL installations only (where !include works).
+# For remote packages, use the files: list above.
 # ============================================================================
 
 packages:
