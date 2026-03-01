@@ -15,7 +15,7 @@ display:
       - lambda: |-
           ESP_LOGI("eiferer.display", "Nextion ready — sending cached state");
           // Restore last-known page from NVS cache
-          it.goto_page(id(cached_page));
+          id(nextion_display).goto_page(id(cached_page));
       - delay: 500ms
       - script.execute: draw_eiferer_branding
 
