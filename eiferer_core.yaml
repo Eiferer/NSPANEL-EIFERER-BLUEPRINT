@@ -102,7 +102,7 @@ esp32:
 
 # ── PSRAM ──
 psram:
-  mode: octal
+  mode: quad
   speed: 80MHz
 
 # ── Wi-Fi ──
