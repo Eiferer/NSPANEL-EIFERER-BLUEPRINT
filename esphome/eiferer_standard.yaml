@@ -228,10 +228,19 @@ script:
 
           if (gesture != "tap") {
             ESP_LOGI("eiferer.display", "Gesture: %s (dx=%d dy=%d)", gesture.c_str(), dx, dy);
+            id(detected_gesture) = gesture;
           }
-
-          // Fire event for blueprint to handle
-          auto call = id(homeassistant_api).make_call("fire_event");
+      - if:
+          condition:
+            lambda: 'return id(detected_gesture) != "tap";'
+          then:
+            - homeassistant.event:
+                event: esphome.eiferer_event
+                data:
+                  device_name: ${device_name}
+                  type: "gesture"
+                data_template:
+                  gesture: !lambda 'return id(detected_gesture);'
 
   # Display sleep / wake management
   - id: display_sleep_timer
@@ -268,6 +277,6 @@ sensor:
   - platform: adc
     id: temp_adc
     pin: 38
-    attenuation: 11db
+    attenuation: 12db
     internal: true
     update_interval: 30s
