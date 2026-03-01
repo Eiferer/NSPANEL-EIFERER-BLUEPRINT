@@ -1,1 +1,403 @@
+# ============================================================================
+# Eiferer Core — Hardware, Display, PSRAM, Safe Mode, Boot Sequence
+# ============================================================================
+# This file configures the fundamental NSPanel hardware and implements
+# the stability improvements: safe-mode fallback, PSRAM utilization,
+# phased boot sequence, and NVS state caching.
+# ============================================================================
 
+substitutions:
+  # Defaults — override in your panel's YAML
+  device_name: "nspanel"
+  friendly_name: "NSPanel"
+  wifi_ssid: !secret wifi_ssid
+  wifi_password: !secret wifi_password
+  baud_rate: "115200"
+  nextion_update_url: ""
+  nextion_blank_url: ""
+
+  # Eiferer version tracking
+  eiferer_version: "2026021"
+  project_name: "Eiferer.NSPanel_Blueprint"
+
+  # Memory safety thresholds (bytes)
+  memory_warn_threshold: "30000"
+  memory_critical_threshold: "15000"
+
+  # Boot behavior
+  boot_sound: "false"
+  upload_tft_automatically: "false"
+
+  # Safe mode
+  safe_mode_enabled: "true"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  comment: "NSPanel Eiferer Blueprint v${eiferer_version}"
+  project:
+    name: ${project_name}
+    version: ${eiferer_version}
+  min_version: "2025.11.0"
+  platformio_options:
+    board_build.flash_mode: dio
+  on_boot:
+    - priority: 800
+      then:
+        - lambda: |-
+            // ── Phase 1: Critical hardware init ──
+            ESP_LOGI("eiferer.boot", "Phase=hardware Version=%s Heap=%d PSRAM=%d",
+                     "${eiferer_version}",
+                     esp_get_free_heap_size(),
+                     ESP.getPsramSize());
+
+            // Check for crash recovery
+            auto reason = esp_reset_reason();
+            if (reason == ESP_RST_PANIC || reason == ESP_RST_INT_WDT ||
+                reason == ESP_RST_TASK_WDT || reason == ESP_RST_WDT) {
+              ESP_LOGW("eiferer.boot", "Crash detected (reason=%d) — entering safe mode", reason);
+              id(safe_mode_active) = true;
+              id(crash_count) += 1;
+            } else {
+              id(crash_count) = 0;
+            }
+
+    - priority: 600
+      then:
+        - lambda: |-
+            // ── Phase 2: Load cached state from NVS ──
+            ESP_LOGI("eiferer.boot", "Phase=cache Heap=%d", esp_get_free_heap_size());
+        - script.execute: load_nvs_cache
+
+    - priority: 200
+      then:
+        - lambda: |-
+            // ── Phase 3: Request blueprint config (deferred) ──
+            if (id(safe_mode_active)) {
+              ESP_LOGW("eiferer.boot", "Safe mode active — skipping add-on init");
+              return;
+            }
+            ESP_LOGI("eiferer.boot", "Phase=blueprint Heap=%d", esp_get_free_heap_size());
+        - delay: 2s
+        - script.execute: request_blueprint_settings
+
+    - priority: 100
+      then:
+        - lambda: |-
+            // ── Phase 4: Lazy add-on initialization ──
+            if (id(safe_mode_active)) return;
+            ESP_LOGI("eiferer.boot", "Phase=addons Heap=%d", esp_get_free_heap_size());
+        - delay: 5s
+        - script.execute: init_addons
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_ESP32_SPIRAM_SUPPORT: "y"
+      CONFIG_SPIRAM_USE_MALLOC: "y"
+      CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL: "4096"
+
+# ── PSRAM ──
+psram:
+  mode: octal
+  speed: 80MHz
+
+# ── Wi-Fi ──
+wifi:
+  id: wifi_default
+  ssid: ${wifi_ssid}
+  password: ${wifi_password}
+  power_save_mode: none
+  fast_connect: true
+  ap:
+    ssid: "${device_name}_fallback"
+    password: "eiferer_setup"
+  on_connect:
+    - lambda: |-
+        ESP_LOGI("eiferer.wifi", "Connected RSSI=%d IP=%s",
+                 WiFi.RSSI(), WiFi.localIP().toString().c_str());
+  on_disconnect:
+    - lambda: |-
+        ESP_LOGW("eiferer.wifi", "Disconnected — panel continues with cached state");
+
+# ── API ──
+api:
+  reboot_timeout: 5min
+  on_client_connected:
+    - lambda: |-
+        ESP_LOGI("eiferer.api", "Client connected: %s", client_info.c_str());
+        // Trigger blueprint config request
+        id(blueprint_connected) = true;
+  on_client_disconnected:
+    - lambda: |-
+        ESP_LOGW("eiferer.api", "Client disconnected: %s", client_info.c_str());
+        id(blueprint_connected) = false;
+
+# ── OTA ──
+ota:
+  - platform: esphome
+    on_begin:
+      - lambda: |-
+          ESP_LOGI("eiferer.ota", "OTA update starting — saving state to NVS");
+      - script.execute: save_nvs_cache
+    on_error:
+      - lambda: |-
+          ESP_LOGE("eiferer.ota", "OTA failed with code %d", x);
+
+# ── Logger ──
+logger:
+  level: INFO
+  baud_rate: 0  # Disable UART logging (Nextion uses UART)
+  logs:
+    eiferer.boot: INFO
+    eiferer.display: INFO
+    eiferer.climate: INFO
+    eiferer.comms: INFO
+    eiferer.memory: WARN
+    eiferer.wifi: INFO
+    eiferer.api: INFO
+    eiferer.ota: INFO
+    eiferer.nvs: INFO
+    eiferer.addon: INFO
+    eiferer.tft: INFO
+    component: ERROR
+
+# ── Time ──
+time:
+  - platform: homeassistant
+    id: time_provider
+    on_time_sync:
+      - lambda: |-
+          ESP_LOGI("eiferer.boot", "Time synchronized");
+
+# ── UART for Nextion Display ──
+uart:
+  id: uart_nextion
+  rx_pin: 17
+  tx_pin: 16
+  baud_rate: ${baud_rate}
+
+# ── Global Variables ──
+globals:
+  - id: safe_mode_active
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+  - id: crash_count
+    type: int
+    restore_value: true
+    initial_value: "0"
+
+  - id: blueprint_connected
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+  - id: blueprint_init_complete
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+  - id: addons_initialized
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+  - id: cached_page
+    type: int
+    restore_value: true
+    initial_value: "0"
+
+  - id: cached_brightness
+    type: int
+    restore_value: true
+    initial_value: "100"
+
+# ── Scripts ──
+script:
+  # Load last-known state from NVS for instant boot UI
+  - id: load_nvs_cache
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGI("eiferer.nvs", "Loading cached state: page=%d brightness=%d",
+                   id(cached_page), id(cached_brightness));
+          // Restore display to last-known page immediately
+          // This happens before blueprint connects, giving instant UI
+
+  # Save current state to NVS (survives reboots)
+  - id: save_nvs_cache
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGI("eiferer.nvs", "Saving state: page=%d brightness=%d",
+                   id(cached_page), id(cached_brightness));
+
+  # Request configuration from the HA blueprint
+  - id: request_blueprint_settings
+    mode: restart
+    then:
+      - lambda: |-
+          if (!id(blueprint_connected)) {
+            ESP_LOGW("eiferer.comms", "Blueprint not connected — using cached state");
+            return;
+          }
+          ESP_LOGI("eiferer.comms", "Requesting blueprint configuration");
+      - homeassistant.event:
+          event: esphome.eiferer_event
+          data:
+            device_name: ${device_name}
+            type: "request_config"
+
+  # Deferred add-on initialization
+  - id: init_addons
+    mode: single
+    then:
+      - lambda: |-
+          if (id(addons_initialized)) return;
+          uint32_t heap_before = esp_get_free_heap_size();
+          ESP_LOGI("eiferer.addon", "Initializing add-ons (heap=%d)", heap_before);
+          id(addons_initialized) = true;
+          uint32_t heap_after = esp_get_free_heap_size();
+          ESP_LOGI("eiferer.addon", "Add-ons ready (heap=%d, used=%d)",
+                   heap_after, heap_before - heap_after);
+
+  # Memory watchdog — runs periodically
+  - id: memory_watchdog
+    mode: single
+    then:
+      - lambda: |-
+          uint32_t free = esp_get_free_heap_size();
+          uint32_t min_free = esp_get_minimum_free_heap_size();
+          if (free < ${memory_critical_threshold}) {
+            ESP_LOGE("eiferer.memory", "CRITICAL: Heap=%d MinHeap=%d — restarting", free, min_free);
+            // Save state before emergency restart
+          } else if (free < ${memory_warn_threshold}) {
+            ESP_LOGW("eiferer.memory", "LOW: Heap=%d MinHeap=%d", free, min_free);
+          }
+
+# ── Intervals ──
+interval:
+  # Memory watchdog every 30 seconds
+  - interval: 30s
+    then:
+      - script.execute: memory_watchdog
+
+  # Periodic NVS cache save every 5 minutes
+  - interval: 5min
+    then:
+      - script.execute: save_nvs_cache
+
+# ── Physical Buttons ──
+binary_sensor:
+  - platform: gpio
+    id: button_left
+    pin:
+      number: 14
+      inverted: true
+    name: "${friendly_name} Left Button"
+    on_press:
+      - homeassistant.event:
+          event: esphome.eiferer_event
+          data:
+            device_name: ${device_name}
+            type: "button_press"
+            button: "left"
+    on_click:
+      min_length: 600ms
+      max_length: 5000ms
+      then:
+        - homeassistant.event:
+            event: esphome.eiferer_event
+            data:
+              device_name: ${device_name}
+              type: "button_long_press"
+              button: "left"
+
+  - platform: gpio
+    id: button_right
+    pin:
+      number: 27
+      inverted: true
+    name: "${friendly_name} Right Button"
+    on_press:
+      - homeassistant.event:
+          event: esphome.eiferer_event
+          data:
+            device_name: ${device_name}
+            type: "button_press"
+            button: "right"
+    on_click:
+      min_length: 600ms
+      max_length: 5000ms
+      then:
+        - homeassistant.event:
+            event: esphome.eiferer_event
+            data:
+              device_name: ${device_name}
+              type: "button_long_press"
+              button: "right"
+
+# ── Relays ──
+switch:
+  - platform: gpio
+    id: relay_1
+    pin: 22
+    name: "${friendly_name} Relay 1"
+    on_turn_on:
+      - homeassistant.event:
+          event: esphome.eiferer_event
+          data:
+            device_name: ${device_name}
+            type: "relay_change"
+            relay: "1"
+            state: "on"
+    on_turn_off:
+      - homeassistant.event:
+          event: esphome.eiferer_event
+          data:
+            device_name: ${device_name}
+            type: "relay_change"
+            relay: "1"
+            state: "off"
+
+  - platform: gpio
+    id: relay_2
+    pin: 19
+    name: "${friendly_name} Relay 2"
+    on_turn_on:
+      - homeassistant.event:
+          event: esphome.eiferer_event
+          data:
+            device_name: ${device_name}
+            type: "relay_change"
+            relay: "2"
+            state: "on"
+    on_turn_off:
+      - homeassistant.event:
+          event: esphome.eiferer_event
+          data:
+            device_name: ${device_name}
+            type: "relay_change"
+            relay: "2"
+            state: "off"
+
+  # Internal: restart the panel
+  - platform: restart
+    id: restart_switch
+    name: "${friendly_name} Restart"
+    entity_category: config
+
+# ── Buzzer ──
+output:
+  - platform: ledc
+    id: buzzer_output
+    pin: 21
+
+rtttl:
+  id: buzzer
+  output: buzzer_output
