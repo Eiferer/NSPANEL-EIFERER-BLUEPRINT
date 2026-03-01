@@ -38,10 +38,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: 60s
     lambda: |-
-      if (psramFound()) {
-        return ESP.getFreePsram();
-      }
-      return 0;
+      return heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
 
   - platform: template
     id: largest_free_block
