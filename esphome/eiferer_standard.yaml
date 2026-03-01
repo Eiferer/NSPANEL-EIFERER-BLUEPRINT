@@ -115,7 +115,7 @@ api:
     - service: notification_show
       variables:
         label: string
-        text: string
+        message: string
         priority: string  # "high", "normal", "low"
         duration: int     # seconds, 0 = until dismissed
         sound: string     # RTTTL melody name or empty
