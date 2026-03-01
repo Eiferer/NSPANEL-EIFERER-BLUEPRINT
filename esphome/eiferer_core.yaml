@@ -217,6 +217,11 @@ globals:
     restore_value: true
     initial_value: "100"
 
+  - id: detected_gesture
+    type: std::string
+    restore_value: false
+    initial_value: '"tap"'
+
 # ── Scripts ──
 script:
   # Load last-known state from NVS for instant boot UI
